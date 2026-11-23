@@ -44,6 +44,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.snapshotFlow
@@ -286,6 +288,9 @@ private fun androidx.compose.foundation.lazy.LazyListScope.itemsIndexedShelves(
     onMoodClick: ((TopPickMood, String) -> Unit)? = null,
     onMoodsShowAll: () -> Unit = {},
 ) {
+    val tabShelves = shelves
+        .filterIndexed { i, s -> i == 0 || s.items.count { it.videoId != null } >= 4 }
+        .take(QUICK_PICKS_TABS)
     shelves.forEachIndexed { index, shelf ->
         // Find Your Mood follows the lead shelf, as on Apple Music's Home.
         if (index == 1 && onMoodClick != null) {
@@ -298,7 +303,8 @@ private fun androidx.compose.foundation.lazy.LazyListScope.itemsIndexedShelves(
             if (index == 0 && (shelf.layout == ShelfLayout.LIST || shelf.title.equals(RECENTS_TITLE, ignoreCase = true))) {
                 QuickPicksShelf(
                     shelf = shelf,
-                    onItemClick = openItem,
+                    tabs = tabShelves,
+                    onItemClick = onItemClick,
                     onItemLongPress = onItemLongPress,
                     currentSong = currentSong,
                     isPlaying = isPlaying,
@@ -325,41 +331,83 @@ private fun androidx.compose.foundation.lazy.LazyListScope.itemsIndexedShelves(
 }
 
 private const val QUICK_PICKS_COUNT = 6
+private const val QUICK_PICKS_TABS = 4
 
 @Composable
 private fun QuickPicksShelf(
     shelf: HomeShelf,
-    onItemClick: (ShelfItem) -> Unit,
+    tabs: List<HomeShelf>,
+    onItemClick: (ShelfItem, String) -> Unit,
     onItemLongPress: ((ShelfItem) -> Unit)?,
     currentSong: Song?,
     isPlaying: Boolean,
 ) {
-    val isCurrentItem = shelf.items.playingItemMatcher(currentSong)
-    val playable = shelf.items.filter { it.videoId != null }
-    Column(
-        modifier = Modifier
-            .padding(horizontal = PAGE_GUTTER)
-            .padding(bottom = 26.dp),
-        verticalArrangement = Arrangement.spacedBy(10.dp),
-    ) {
-        shelf.items.take(QUICK_PICKS_COUNT).chunked(2).forEach { pair ->
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                pair.forEach { item ->
-                    QuickPickCard(
-                        item = item,
-                        onClick = { onItemClick(item) },
-                        onLongPress = onItemLongPress?.let { { it(item) } },
-                        isCurrent = isCurrentItem(item),
-                        isPlaying = isCurrentItem(item) && isPlaying,
-                        modifier = Modifier.weight(1f),
+    val options = tabs.ifEmpty { listOf(shelf) }
+    var selected by remember { mutableIntStateOf(0) }
+    val current = options[selected.coerceIn(0, options.lastIndex)]
+    val isCurrentItem = current.items.playingItemMatcher(currentSong)
+    val playable = current.items.filter { it.videoId != null }
+    Column(Modifier.padding(bottom = 26.dp)) {
+        if (options.size > 1) {
+            ShelfRow(
+                contentPadding = PaddingValues(horizontal = PAGE_GUTTER),
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                items(options.size) { index ->
+                    TabChip(
+                        label = localizeShelfTitle(options[index].title),
+                        selected = index == selected,
+                        onClick = { selected = index },
                     )
                 }
-                if (pair.size == 1) Spacer(Modifier.weight(1f))
+            }
+            Spacer(Modifier.height(14.dp))
+        }
+        Column(
+            modifier = Modifier.padding(horizontal = PAGE_GUTTER),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            current.items.take(QUICK_PICKS_COUNT).chunked(2).forEach { pair ->
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    pair.forEach { item ->
+                        QuickPickCard(
+                            item = item,
+                            onClick = { onItemClick(item, current.title) },
+                            onLongPress = onItemLongPress?.let { { it(item) } },
+                            isCurrent = isCurrentItem(item),
+                            isPlaying = isCurrentItem(item) && isPlaying,
+                            modifier = Modifier.weight(1f),
+                        )
+                    }
+                    if (pair.size == 1) Spacer(Modifier.weight(1f))
+                }
+            }
+            if (playable.isNotEmpty()) {
+                ShuffleCard(count = playable.size, onClick = { onItemClick(playable.random(), current.title) })
             }
         }
-        if (playable.isNotEmpty()) {
-            ShuffleCard(count = playable.size, onClick = { onItemClick(playable.random()) })
-        }
+    }
+}
+
+@Composable
+private fun TabChip(label: String, selected: Boolean, onClick: () -> Unit) {
+    val colors = MaterialTheme.colorScheme
+    Box(
+        modifier = Modifier
+            .height(40.dp)
+            .clip(CircleShape)
+            .background(if (selected) colors.primary else colors.surfaceVariant.copy(alpha = 0.55f))
+            .border(1.dp, Color.White.copy(alpha = if (selected) 0f else 0.08f), CircleShape)
+            .clickable(onClick = onClick)
+            .padding(horizontal = 18.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            text = label,
+            style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
+            color = if (selected) colors.onPrimary else colors.onBackground,
+            maxLines = 1,
+        )
     }
 }
 
@@ -640,20 +688,6 @@ private fun HomeTitle(
         }
         if (replayYear != null) {
             ReplayYearButton(replayYear, height = 32.dp)
-            Spacer(Modifier.width(12.dp))
-        }
-        Box(
-            modifier = Modifier
-                .size(48.dp)
-                .clip(CircleShape)
-                .background(MaterialTheme.colorScheme.primary),
-            contentAlignment = Alignment.Center,
-        ) {
-            Text(
-                text = name.first().uppercase(),
-                style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
-                color = MaterialTheme.colorScheme.onPrimary,
-            )
         }
     }
 }
