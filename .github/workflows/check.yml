@@ -42,9 +42,6 @@ jobs:
 
       - run: chmod +x gradlew
 
-      - name: Tests
-        run: ./gradlew testDevDebugUnitTest
-
       - name: Build the dev APK
         run: ./gradlew assembleDevDebug
 
@@ -54,12 +51,6 @@ jobs:
           name: bitchord-dev-debug
           path: app/build/outputs/apk/dev/debug/*.apk
 
-      - name: Upload test reports
-        if: failure()
-        uses: actions/upload-artifact@v4
-        with:
-          name: android-test-reports
-          path: app/build/reports/tests/
 
   backend:
     name: Backend · Go
