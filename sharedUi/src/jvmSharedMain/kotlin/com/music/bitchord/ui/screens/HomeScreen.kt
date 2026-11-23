@@ -11,6 +11,7 @@ import org.jetbrains.compose.resources.stringResource
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import com.music.bitchord.ui.components.longPressMenuClickable
 import androidx.compose.foundation.layout.Arrangement
@@ -50,6 +51,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
@@ -61,6 +63,7 @@ import androidx.compose.material.icons.rounded.Cached
 import androidx.compose.material.icons.rounded.Folder
 import androidx.compose.material.icons.rounded.LibraryMusic
 import androidx.compose.material.icons.rounded.MoreVert
+import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material.icons.rounded.Storage
 import com.music.bitchord.ui.icons.BitChordIcons
 import coil3.compose.AsyncImage
@@ -175,7 +178,14 @@ fun HomeScreen(
     ) {
         LazyColumn(
             state = listState,
-            modifier = Modifier.fillMaxSize(),
+            modifier = Modifier
+                .fillMaxSize()
+                .background(
+                    Brush.verticalGradient(
+                        0f to MaterialTheme.colorScheme.primary.copy(alpha = 0.30f),
+                        0.5f to Color.Transparent,
+                    ),
+                ),
             // The heading sits higher than the other tabs' first row: pull the
             // whole feed up by [HOME_TITLE_LIFT] with it.
             contentPadding = if (title != null) {
@@ -188,7 +198,7 @@ fun HomeScreen(
             },
         ) {
             if (title != null) {
-                item { HomeTitle(title, replayYear) }
+                item { HomeTitle(title, listenerName, replayYear) }
             }
             if (!signedIn && onSignIn != null) {
                 item {
@@ -285,9 +295,15 @@ private fun androidx.compose.foundation.lazy.LazyListScope.itemsIndexedShelves(
             val openItem: (ShelfItem) -> Unit = { item -> onItemClick(item, shelf.title) }
             // Listen again and Quick picks are lists on the web player, as
             // Recents is here: one pager for all three.
-            if (shelf.layout == ShelfLayout.LIST ||
-                (index == 0 && shelf.title.equals(RECENTS_TITLE, ignoreCase = true))
-            ) {
+            if (index == 0 && (shelf.layout == ShelfLayout.LIST || shelf.title.equals(RECENTS_TITLE, ignoreCase = true))) {
+                QuickPicksShelf(
+                    shelf = shelf,
+                    onItemClick = openItem,
+                    onItemLongPress = onItemLongPress,
+                    currentSong = currentSong,
+                    isPlaying = isPlaying,
+                )
+            } else if (shelf.layout == ShelfLayout.LIST) {
                 RecentShelf(
                     shelf = shelf,
                     onItemClick = openItem,
@@ -304,6 +320,136 @@ private fun androidx.compose.foundation.lazy.LazyListScope.itemsIndexedShelves(
                     isPlaying = isPlaying,
                 )
             }
+        }
+    }
+}
+
+private const val QUICK_PICKS_COUNT = 6
+
+@Composable
+private fun QuickPicksShelf(
+    shelf: HomeShelf,
+    onItemClick: (ShelfItem) -> Unit,
+    onItemLongPress: ((ShelfItem) -> Unit)?,
+    currentSong: Song?,
+    isPlaying: Boolean,
+) {
+    val isCurrentItem = shelf.items.playingItemMatcher(currentSong)
+    val playable = shelf.items.filter { it.videoId != null }
+    Column(
+        modifier = Modifier
+            .padding(horizontal = PAGE_GUTTER)
+            .padding(bottom = 26.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        shelf.items.take(QUICK_PICKS_COUNT).chunked(2).forEach { pair ->
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                pair.forEach { item ->
+                    QuickPickCard(
+                        item = item,
+                        onClick = { onItemClick(item) },
+                        onLongPress = onItemLongPress?.let { { it(item) } },
+                        isCurrent = isCurrentItem(item),
+                        isPlaying = isCurrentItem(item) && isPlaying,
+                        modifier = Modifier.weight(1f),
+                    )
+                }
+                if (pair.size == 1) Spacer(Modifier.weight(1f))
+            }
+        }
+        if (playable.isNotEmpty()) {
+            ShuffleCard(count = playable.size, onClick = { onItemClick(playable.random()) })
+        }
+    }
+}
+
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+private fun QuickPickCard(
+    item: ShelfItem,
+    onClick: () -> Unit,
+    onLongPress: (() -> Unit)?,
+    isCurrent: Boolean,
+    isPlaying: Boolean,
+    modifier: Modifier = Modifier,
+) {
+    val shape = RoundedCornerShape(20.dp)
+    Row(
+        modifier = modifier
+            .height(64.dp)
+            .clip(shape)
+            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f))
+            .border(1.dp, Color.White.copy(alpha = 0.08f), shape)
+            .longPressMenuClickable(onClick = onClick, onLongClick = onLongPress)
+            .contextClick(onLongPress),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(Modifier.size(64.dp)) {
+            AsyncImage(
+                model = item.thumbnailUrl.artworkAt(ROW_ART_PX),
+                contentDescription = null,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(MaterialTheme.colorScheme.surfaceVariant),
+            )
+            if (isCurrent && isPlaying) SearchPlayingBars(Modifier.align(Alignment.Center))
+        }
+        Text(
+            text = item.title,
+            style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
+            color = MaterialTheme.colorScheme.onBackground,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier
+                .weight(1f)
+                .padding(horizontal = 12.dp),
+        )
+    }
+}
+
+@Composable
+private fun ShuffleCard(count: Int, onClick: () -> Unit) {
+    val colors = MaterialTheme.colorScheme
+    val shape = RoundedCornerShape(28.dp)
+    Row(
+        modifier = Modifier
+            .padding(top = 6.dp)
+            .fillMaxWidth()
+            .clip(shape)
+            .background(Brush.horizontalGradient(listOf(colors.primaryContainer, colors.surfaceVariant)))
+            .border(1.dp, Color.White.copy(alpha = 0.10f), shape)
+            .clickable(onClick = onClick)
+            .padding(horizontal = 24.dp, vertical = 22.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(Modifier.weight(1f)) {
+            Text(
+                text = "Mezcla aleatoria",
+                style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
+                color = colors.onBackground,
+            )
+            Text(
+                text = "$count canciones · toca para sorprenderte",
+                style = MaterialTheme.typography.bodyMedium,
+                color = colors.onSurfaceVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+        Box(
+            modifier = Modifier
+                .size(52.dp)
+                .clip(CircleShape)
+                .background(Color.White),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(
+                imageVector = Icons.Rounded.PlayArrow,
+                contentDescription = null,
+                tint = Color.Black,
+                modifier = Modifier.size(28.dp),
+            )
         }
     }
 }
@@ -453,12 +599,24 @@ fun CompactTrackRow(
 
 private const val HOME_BRAND = "STM Player"
 
+private fun greeting(): String {
+    val hour = java.util.Calendar.getInstance().get(java.util.Calendar.HOUR_OF_DAY)
+    return when {
+        hour < 6 -> "Buenas noches"
+        hour < 12 -> "Buenos días"
+        hour < 19 -> "Buenas tardes"
+        else -> "Buenas noches"
+    }
+}
+
 @Composable
 private fun HomeTitle(
     title: String,
+    listenerName: String?,
     replayYear: ReplayYearBadge? = null,
     modifier: Modifier = Modifier,
 ) {
+    val name = listenerName?.substringBefore(' ')?.takeIf { it.isNotBlank() } ?: HOME_BRAND
     Row(
         modifier = modifier
             .fillMaxWidth()
@@ -466,17 +624,36 @@ private fun HomeTitle(
             .padding(bottom = 14.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Text(
-            text = HOME_BRAND,
-            style = MaterialTheme.typography.displaySmall.copy(fontWeight = FontWeight.Black),
-            color = MaterialTheme.colorScheme.onBackground,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.weight(1f, fill = false),
-        )
+        Column(Modifier.weight(1f)) {
+            Text(
+                text = greeting(),
+                style = MaterialTheme.typography.bodyLarge,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Text(
+                text = name,
+                style = MaterialTheme.typography.displaySmall.copy(fontWeight = FontWeight.Black),
+                color = MaterialTheme.colorScheme.onBackground,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
         if (replayYear != null) {
-            Spacer(Modifier.width(14.dp))
             ReplayYearButton(replayYear, height = 32.dp)
+            Spacer(Modifier.width(12.dp))
+        }
+        Box(
+            modifier = Modifier
+                .size(48.dp)
+                .clip(CircleShape)
+                .background(MaterialTheme.colorScheme.primary),
+            contentAlignment = Alignment.Center,
+        ) {
+            Text(
+                text = name.first().uppercase(),
+                style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
+                color = MaterialTheme.colorScheme.onPrimary,
+            )
         }
     }
 }
