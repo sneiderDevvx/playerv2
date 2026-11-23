@@ -23,20 +23,82 @@ import com.music.bitchord.data.settings.AppFont
 // spots (Replay's rank badge) that want that specific red regardless of theme.
 val AccentRed = Color(0xFFFA2D48)
 
+private class Palette(
+    val accent: Color,
+    val onAccent: Color,
+    val accentLight: Color,
+    val darkSurface: Color,
+    val darkVariant: Color,
+    val darkMuted: Color,
+    val darkOutline: Color,
+)
+
+private val PaletteOriginal = Palette(
+    accent = Color.White,
+    onAccent = Color.Black,
+    accentLight = Color.Black,
+    darkSurface = Color(0xFF0D0D0F),
+    darkVariant = Color(0xFF1C1C1E),
+    darkMuted = Color(0xFF8E8E93),
+    darkOutline = Color(0xFF2C2C2E),
+)
+
+private val PaletteVioleta = Palette(
+    accent = Color(0xFFA78BFA),
+    onAccent = Color.Black,
+    accentLight = Color(0xFF6D4AE0),
+    darkSurface = Color(0xFF0D0B14),
+    darkVariant = Color(0xFF1B1730),
+    darkMuted = Color(0xFF9A93B8),
+    darkOutline = Color(0xFF2D2745),
+)
+
+private val PaletteAzul = Palette(
+    accent = Color(0xFF60A5FA),
+    onAccent = Color.Black,
+    accentLight = Color(0xFF1D6FD8),
+    darkSurface = Color(0xFF0A0E14),
+    darkVariant = Color(0xFF121C2B),
+    darkMuted = Color(0xFF8A98AE),
+    darkOutline = Color(0xFF22314A),
+)
+
+private val PaletteVerde = Palette(
+    accent = Color(0xFF34D399),
+    onAccent = Color.Black,
+    accentLight = Color(0xFF0E9F6E),
+    darkSurface = Color(0xFF0A100E),
+    darkVariant = Color(0xFF112019),
+    darkMuted = Color(0xFF8AA399),
+    darkOutline = Color(0xFF1F3329),
+)
+
+private val PaletteRojo = Palette(
+    accent = Color(0xFFFA2D48),
+    onAccent = Color.White,
+    accentLight = Color(0xFFD70F2A),
+    darkSurface = Color(0xFF0F0B0C),
+    darkVariant = Color(0xFF201416),
+    darkMuted = Color(0xFFA08A8D),
+    darkOutline = Color(0xFF352325),
+)
+
+private val SelectedPalette = PaletteVioleta
+
 private val DarkColors = darkColorScheme(
-    primary = Color.White,
-    onPrimary = Color.Black,
+    primary = SelectedPalette.accent,
+    onPrimary = SelectedPalette.onAccent,
     background = Color.Black,
     onBackground = Color.White,
-    surface = Color(0xFF0D0D0F),
+    surface = SelectedPalette.darkSurface,
     onSurface = Color.White,
-    surfaceVariant = Color(0xFF1C1C1E),
-    onSurfaceVariant = Color(0xFF8E8E93),
-    outline = Color(0xFF2C2C2E),
+    surfaceVariant = SelectedPalette.darkVariant,
+    onSurfaceVariant = SelectedPalette.darkMuted,
+    outline = SelectedPalette.darkOutline,
 )
 
 private val LightColors = lightColorScheme(
-    primary = Color.Black,
+    primary = SelectedPalette.accentLight,
     onPrimary = Color.White,
     background = Color.White,
     onBackground = Color.Black,
